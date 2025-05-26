@@ -42,7 +42,7 @@ export class LinkIndexer {
     /**
      * インデックスを再構築
      */
-    public async rebuildIndex(links: any[]): Promise<void> {
+    public async rebuildIndex(): Promise<void> {
         // インデックスをクリア
         this.clearIndex();
 
@@ -50,25 +50,23 @@ export class LinkIndexer {
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             return;
         }
+        const config = vscode.workspace.getConfiguration('linkPatterns');
+        const rules = config.get<any[]>('rules') || [];
 
-        // 有効な設定のみフィルタリング
-        const validLinks = links.filter(link =>
-            Array.isArray(link.links) &&
-            link.links.length > 0 &&
-            Array.isArray(link.destinations) &&
-            link.destinations.length > 0
-        );
 
         // 各リンク設定に対して処理
-        for (const link of validLinks) {
+        for (const rule of rules) {
+            if (!rule.to || !Array.isArray(rule.to)) {
+                continue;
+            }
             await Promise.all(
-                link.destinations.map(async (destination: any) => {
+                rule.to.map(async (destination: any) => {
                     // 必須フィールドがない場合はスキップ
                     if (!destination.includes || !destination.patterns) {
                         return;
                     }
 
-                    await this.processDestination(destination, link.links);
+                    await this.processDestination(destination);
                 })
             );
         }
@@ -77,7 +75,7 @@ export class LinkIndexer {
     /**
      * 宛先設定を処理する
      */
-    private async processDestination(destination: any, sources: any[]): Promise<void> {
+    private async processDestination(destination: any): Promise<void> {
         // ワークスペースフォルダが存在しない場合は処理を中止
         if (!vscode.workspace.workspaceFolders) {
             return;
@@ -103,7 +101,7 @@ export class LinkIndexer {
         // 各ファイルを処理
         await Promise.all(
             allFiles.map(async (file) => {
-                await this.processFile(file, destination, sources);
+                await this.processFile(file, destination);
             })
         );
     }
@@ -111,7 +109,7 @@ export class LinkIndexer {
     /**
      * ファイルを処理する
      */
-    private async processFile(file: string, destination: any, sources: any[]): Promise<void> {
+    private async processFile(file: string, destination: any): Promise<void> {
         try {
             const content = fs.readFileSync(file, 'utf8');
             const lines = content.split(/\r?\n/);
@@ -159,11 +157,25 @@ export class LinkIndexer {
 
         return vscode.workspace.workspaceFolders.some(folder => {
             const basePath = folder.uri.fsPath;
-            const pattern = path.join(basePath, globPattern);
-            const relativePath = path.relative(basePath, fileName);
+            // globPattern が絶対パスの場合はそのまま使う
+            const pattern = path.isAbsolute(globPattern) ? globPattern : path.join(basePath, globPattern);
+            const relativePathFromBase = path.relative(basePath, fileName);
 
-            return glob.sync(pattern, { nodir: true })
-                .some(f => path.relative(basePath, f) === relativePath);
+            // glob.sync はワークスペースルートからの相対パスまたは絶対パスで動作するため、
+            // pattern がワークスペース外を指している場合や、fileName が期待通りに解決できない場合がある。
+            // ここでは、globPattern がワークスペース内のファイルを指すことを期待する。
+            try {
+                const matchedFiles = glob.sync(pattern, { nodir: true, cwd: basePath });
+                return matchedFiles.some(f => path.resolve(basePath, f) === path.resolve(fileName));
+            } catch (error) {
+                console.error(`Error in glob.sync for pattern ${pattern} with base ${basePath}:`, error);
+                // isFileMatchGlob の呼び出し元で fileName がフルパスであることを確認する
+                // globPattern が相対パスの場合、basePath からの相対として解釈
+                // glob.sync は cwd からの相対パスでマッチングを行う
+                // fileName を basePath からの相対パスに変換して比較する方が安全かもしれない
+                const relativeToCwd = path.relative(basePath, fileName);
+                return glob.sync(globPattern, { nodir: true, cwd: basePath }).includes(relativeToCwd);
+            }
         });
     }
 }

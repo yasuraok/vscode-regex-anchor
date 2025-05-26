@@ -1,16 +1,20 @@
 {
-    "linkPatterns.links": [
+    "linkPatterns.rules": [
         {
-            "links": [
+            "from": [
                 {
                     "includes": "doc/*.md",
                     "patterns": "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
                 }
             ],
-            "destinations": [
+            "to": [
                 {
                     "includes": "src/*.yaml",
-                    "patterns": "id: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+                    "patterns": "id: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
+                    "hoverPreview": {
+                        "linesBefore": 0,
+                        "linesAfter": 3
+                    }
                 }
             ]
         }

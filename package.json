@@ -45,31 +45,37 @@
     "configuration": {
       "title": "Link Patterns",
       "properties": {
-        "linkPatterns.links": {
+        "linkPatterns.rules": {
           "type": "array",
           "default": [],
-          "description": "Configuration for link patterns",
+          "description": "Configuration for link rules",
           "items": {
             "type": "object",
             "properties": {
-              "links": {
+              "from": {
                 "type": "array",
+                "description": "Source patterns for the links",
                 "items": {
                   "type": "object",
                   "properties": {
                     "includes": {
                       "type": "string",
-                      "description": "Glob pattern for files containing links"
+                      "description": "Glob pattern for files containing link texts"
                     },
                     "patterns": {
                       "type": "string",
-                      "description": "Regex pattern to match links in files"
+                      "description": "Regex pattern to match link texts in files"
                     }
-                  }
+                  },
+                  "required": [
+                    "includes",
+                    "patterns"
+                  ]
                 }
               },
-              "destinations": {
+              "to": {
                 "type": "array",
+                "description": "Target patterns for the links",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -80,11 +86,39 @@
                     "patterns": {
                       "type": "string",
                       "description": "Regex pattern to match link destinations"
+                    },
+                    "hoverPreview": {
+                      "type": "object",
+                      "default": {
+                        "linesBefore": 2,
+                        "linesAfter": 2
+                      },
+                      "description": "Configuration for hover preview for this target",
+                      "properties": {
+                        "linesBefore": {
+                          "type": "integer",
+                          "default": 2,
+                          "description": "Number of lines to show before the target line"
+                        },
+                        "linesAfter": {
+                          "type": "integer",
+                          "default": 2,
+                          "description": "Number of lines to show after the target line"
+                        }
+                      }
                     }
-                  }
+                  },
+                  "required": [
+                    "includes",
+                    "patterns"
+                  ]
                 }
               }
-            }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
           }
         }
       }
