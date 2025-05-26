@@ -1,0 +1,116 @@
+{
+  "name": "link-patterns",
+  "displayName": "Link Patterns",
+  "description": "Create links in files based on patterns defined in settings",
+  "version": "0.0.1",
+  "publisher": "sample",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "link",
+    "pattern",
+    "navigation",
+    "reference",
+    "uuid"
+  ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#C80000",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sample/link-patterns"
+  },
+  "homepage": "https://github.com/sample/link-patterns/blob/main/README.md",
+  "bugs": {
+    "url": "https://github.com/sample/link-patterns/issues"
+  },
+  "license": "MIT",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "link-patterns.refresh",
+        "title": "Link Patterns: Refresh Link Index"
+      }
+    ],
+    "configuration": {
+      "title": "Link Patterns",
+      "properties": {
+        "linkPatterns.links": {
+          "type": "array",
+          "default": [],
+          "description": "Configuration for link patterns",
+          "items": {
+            "type": "object",
+            "properties": {
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "includes": {
+                      "type": "string",
+                      "description": "Glob pattern for files containing links"
+                    },
+                    "patterns": {
+                      "type": "string",
+                      "description": "Regex pattern to match links in files"
+                    }
+                  }
+                }
+              },
+              "destinations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "includes": {
+                      "type": "string",
+                      "description": "Glob pattern for destination files"
+                    },
+                    "patterns": {
+                      "type": "string",
+                      "description": "Regex pattern to match link destinations"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "mocha out/test/suite/**/*.js",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.15.21",
+    "@types/vscode": "^1.100.0",
+    "mocha": "^11.5.0",
+    "typescript": "^5.8.3",
+    "vscode": "^1.1.37"
+  },
+  "dependencies": {
+    "glob": "^7.2.3",
+    "minimatch": "^3.1.2"
+  }
+}
