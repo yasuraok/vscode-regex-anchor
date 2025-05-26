@@ -28,72 +28,74 @@ export class LinkDecorator {
      * リンクのクリックハンドラを登録
      */
     private registerLinkClickHandler(): void {
-        vscode.window.onDidChangeTextEditorSelection(event => {
+        vscode.window.onDidChangeTextEditorSelection(async event => {
             const editor = event.textEditor;
             const selection = event.selections[0];
 
-            if (selection && selection.isEmpty) {
-                // カーソル位置のテキストを取得
-                const document = editor.document;
-                const position = selection.active;
+            // マウスによるクリック操作（選択範囲が空）の場合のみ処理
+            if (event.kind !== vscode.TextEditorSelectionChangeKind.Mouse || !selection || !selection.isEmpty) {
+                return;
+            }
 
-                // 現在のファイルに適用されるリンクパターンを探す
-                const config = vscode.workspace.getConfiguration('linkPatterns');
-                const links = config.get<any[]>('links') || [];
+            // カーソル位置のテキストを取得
+            const document = editor.document;
+            const position = selection.active;
 
-                // ファイルに一致するリンクパターンを検索
-                const matchingLink = links.find(link =>
-                    Array.isArray(link.links) && link.links.some((source: any) =>
+            // 現在のファイルに適用されるリンクパターンを探す
+            const config = vscode.workspace.getConfiguration('linkPatterns');
+            const links = config.get<any[]>('links') || [];
+
+            // ファイルに一致するリンクパターンを検索
+            const matchingLink = links.find(link =>
+                Array.isArray(link.links) && link.links.some((source: any) =>
+                    source.includes &&
+                    source.patterns &&
+                    this.linkIndexer.isFileMatchGlob(document.fileName, source.includes)
+                )
+            );
+
+            if (matchingLink) {
+                // このファイルに適用される全パターンを取得
+                const patterns = matchingLink.links
+                    .filter((source: any) =>
                         source.includes &&
-                        source.patterns &&
                         this.linkIndexer.isFileMatchGlob(document.fileName, source.includes)
                     )
-                );
+                    .map((source: any) => source.patterns);
 
-                if (matchingLink) {
-                    // このファイルに適用される全パターンを取得
-                    const patterns = matchingLink.links
-                        .filter((source: any) =>
-                            source.includes &&
-                            this.linkIndexer.isFileMatchGlob(document.fileName, source.includes)
-                        )
-                        .map((source: any) => source.patterns);
+                // 各パターンで試行
+                for (const patternStr of patterns) {
+                    try {
+                        // カーソル位置の単語を取得
+                        // 正規表現が不正な場合は次のパターンを試す
+                        const pattern = new RegExp(patternStr);
+                        const line = document.lineAt(position.line).text;
 
-                    // 各パターンで試行
-                    for (const patternStr of patterns) {
-                        try {
-                            // カーソル位置の単語を取得
-                            // 正規表現が不正な場合は次のパターンを試す
-                            const pattern = new RegExp(patternStr);
-                            const line = document.lineAt(position.line).text;
-                            const lineRange = document.lineAt(position.line).range;
+                        // この行で正規表現にマッチする部分を探す
+                        const matches = [...line.matchAll(new RegExp(patternStr, 'g'))];
 
-                            // この行で正規表現にマッチする部分を探す
-                            const matches = [...line.matchAll(new RegExp(patternStr, 'g'))];
+                        for (const match of matches) {
+                            if (match.index === undefined) continue;
 
-                            for (const match of matches) {
-                                if (match.index === undefined) continue;
+                            const startPos = new vscode.Position(position.line, match.index);
+                            const endPos = new vscode.Position(position.line, match.index + match[0].length);
+                            const matchRange = new vscode.Range(startPos, endPos);
 
-                                const startPos = new vscode.Position(position.line, match.index);
-                                const endPos = new vscode.Position(position.line, match.index + match[0].length);
-                                const matchRange = new vscode.Range(startPos, endPos);
+                            // カーソルがマッチ範囲内にある場合
+                            if (matchRange.contains(position)) {
+                                // キャプチャグループがある場合は最初のグループを使用、なければマッチ全体
+                                const linkText = match[1] || match[0];
 
-                                // カーソルがマッチ範囲内にある場合
-                                if (matchRange.contains(position)) {
-                                    // キャプチャグループがある場合は最初のグループを使用、なければマッチ全体
-                                    const linkText = match[1] || match[0];
-
-                                    // インデックス内にあるかどうかを確認
-                                    if (this.linkIndexer.hasDestination(linkText)) {
-                                        // リンク先に移動
-                                        this.navigateToDestination(linkText);
-                                        return;
-                                    }
+                                // インデックス内にあるかどうかを確認
+                                if (this.linkIndexer.hasDestination(linkText)) {
+                                    // リンク先に移動
+                                    await this.navigateToDestination(linkText); // await を追加
+                                    return;
                                 }
                             }
-                        } catch (error) {
-                            console.error(`Invalid regex pattern: ${patternStr}`, error);
                         }
+                    } catch (error) {
+                        console.error(`Invalid regex pattern: ${patternStr}`, error);
                     }
                 }
             }
@@ -188,10 +190,10 @@ export class LinkDecorator {
      * ドキュメント内のリンクを装飾
      */
     private decorateLinksInDocument(editor: vscode.TextEditor, document: vscode.TextDocument, patternStr: string): void {
+        const ranges: vscode.Range[] = []; // ranges の宣言を try ブロックの前に移動
         try {
             const text = document.getText();
             const pattern = new RegExp(patternStr, 'g');
-            const ranges: vscode.Range[] = [];
 
             // 行ごとに処理してパフォーマンス向上と正確なマッチングを実現
             const lines = text.split(/\r?\n/);
