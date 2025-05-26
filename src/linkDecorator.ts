@@ -7,6 +7,8 @@ import { LinkIndexer } from './linkIndexer';
 export class LinkDecorator {
     // リンクの装飾タイプ
     private linkDecorationType: vscode.TextEditorDecorationType;
+    // リンク切れの装飾タイプ
+    private brokenLinkDecorationType: vscode.TextEditorDecorationType; // 追加
 
     /**
      * コンストラクタ
@@ -20,8 +22,18 @@ export class LinkDecorator {
             cursor: 'pointer' // カーソルをポインタに変更
         });
 
+        // リンク切れのスタイルを定義 (追加)
+        this.brokenLinkDecorationType = vscode.window.createTextEditorDecorationType({
+            color: '#ff3737', // リンク切れの色 (例: 赤)
+            textDecoration: 'underline dotted', // 点線の下線 (例)
+            // cursor: 'not-allowed' // カーソルを変更することも可能
+        });
+
         // クリックイベントの登録
         this.registerLinkClickHandler();
+
+        // ホバーイベントの登録
+        this.registerHoverProvider();
     }
 
     /**
@@ -103,6 +115,97 @@ export class LinkDecorator {
     }
 
     /**
+     * ホバープロバイダーを登録
+     */
+    private registerHoverProvider(): void {
+        vscode.languages.registerHoverProvider('*', { // すべてのファイルタイプを対象にする場合
+            provideHover: async (document, position, token) => {
+                const config = vscode.workspace.getConfiguration('linkPatterns');
+                const links = config.get<any[]>('links') || [];
+                // ホバー設定を取得 (追加)
+                const hoverConfig = config.get<any>('hoverPreview') || { linesBefore: 0, linesAfter: 3 };
+
+
+                const matchingLinkPattern = links.find(link =>
+                    Array.isArray(link.links) && link.links.some((source: any) =>
+                        source.includes &&
+                        source.patterns &&
+                        this.linkIndexer.isFileMatchGlob(document.fileName, source.includes)
+                    )
+                );
+
+                if (!matchingLinkPattern) {
+                    return null;
+                }
+
+                const patterns = matchingLinkPattern.links
+                    .filter((source: any) =>
+                        source.includes &&
+                        this.linkIndexer.isFileMatchGlob(document.fileName, source.includes)
+                    )
+                    .map((source: any) => source.patterns);
+
+                for (const patternStr of patterns) {
+                    try {
+                        const lineText = document.lineAt(position.line).text;
+                        const matches = [...lineText.matchAll(new RegExp(patternStr, 'g'))];
+
+                        for (const match of matches) {
+                            if (match.index === undefined) continue;
+
+                            const start = new vscode.Position(position.line, match.index);
+                            const end = new vscode.Position(position.line, match.index + match[0].length);
+                            const range = new vscode.Range(start, end);
+
+                            if (range.contains(position)) {
+                                const linkText = match[1] || match[0];
+                                if (this.linkIndexer.hasDestination(linkText)) {
+                                    const destinations = this.linkIndexer.getDestinations(linkText);
+                                    if (destinations.length > 0) {
+                                        // 最初の宛先情報を表示 (複数ある場合の考慮は別途)
+                                        const destination = destinations[0];
+                                        const destDoc = await vscode.workspace.openTextDocument(destination.uri);
+                                        const relativePath = vscode.workspace.asRelativePath(destination.uri);
+
+                                        // 設定に基づいて表示行数を調整 (変更)
+                                        const startLine = Math.max(0, destination.range.start.line - hoverConfig.linesBefore);
+                                        const endLine = Math.min(destDoc.lineCount - 1, destination.range.start.line + hoverConfig.linesAfter);
+
+
+                                        let previewContent = '';
+                                        for (let i = startLine; i <= endLine; i++) {
+                                            const lineContent = destDoc.lineAt(i).text;
+                                            if (i === destination.range.start.line) {
+                                                previewContent += `**${i + 1}: ${lineContent}**\n`;
+                                            } else {
+                                                previewContent += `${i + 1}: ${lineContent}\n`;
+                                            }
+                                        }
+
+                                        const markdownString = new vscode.MarkdownString();
+                                        markdownString.appendMarkdown(`**Link Target:**\n`);
+                                        markdownString.appendMarkdown(`[${relativePath}:${destination.range.start.line + 1}](${destination.uri})\n`);
+                                        markdownString.appendCodeblock(previewContent, destDoc.languageId || 'plaintext');
+                                        return new vscode.Hover(markdownString, range);
+                                    }
+                                } else { // リンク切れの場合のホバー (追加)
+                                    const markdownString = new vscode.MarkdownString();
+                                    markdownString.appendMarkdown(`**Broken Link:** \`${linkText}\` (Destination not found)`);
+                                    return new vscode.Hover(markdownString, range);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error in hover provider: ${error}`);
+                        // パターンエラー時は次のパターンへ
+                    }
+                }
+                return null;
+            }
+        });
+    }
+
+    /**
      * リンク先に移動
      */
     private async navigateToDestination(text: string): Promise<void> {
@@ -162,6 +265,8 @@ export class LinkDecorator {
 
         // すべてのリンク装飾をクリア
         editor.setDecorations(this.linkDecorationType, []);
+        editor.setDecorations(this.brokenLinkDecorationType, []); // リンク切れ装飾もクリア (追加)
+
 
         // 有効な設定のみフィルタリング
         const validLinks = links.filter(link =>
@@ -190,7 +295,8 @@ export class LinkDecorator {
      * ドキュメント内のリンクを装飾
      */
     private decorateLinksInDocument(editor: vscode.TextEditor, document: vscode.TextDocument, patternStr: string): void {
-        const ranges: vscode.Range[] = []; // ranges の宣言を try ブロックの前に移動
+        const validRanges: vscode.Range[] = []; // 有効なリンクの範囲 (変更)
+        const brokenRanges: vscode.Range[] = []; // リンク切れの範囲 (追加)
         try {
             const text = document.getText();
             const pattern = new RegExp(patternStr, 'g');
@@ -215,7 +321,10 @@ export class LinkDecorator {
                     // インデックスにリンク先が存在するか確認
                     if (this.linkIndexer.hasDestination(linkText)) {
                         console.log(`Found link: ${linkText} at line ${i + 1}`);
-                        ranges.push(range);
+                        validRanges.push(range); // 有効なリンクとして追加 (変更)
+                    } else {
+                        console.log(`Found broken link: ${linkText} at line ${i + 1}`);
+                        brokenRanges.push(range); // リンク切れとして追加 (追加)
                     }
                 }
             }
@@ -224,9 +333,14 @@ export class LinkDecorator {
         }
 
         // リンクの装飾を適用
-        if (ranges.length > 0) {
-            console.log(`Decorating ${ranges.length} links in ${document.fileName}`);
-            editor.setDecorations(this.linkDecorationType, ranges);
+        if (validRanges.length > 0) {
+            console.log(`Decorating ${validRanges.length} valid links in ${document.fileName}`);
+            editor.setDecorations(this.linkDecorationType, validRanges);
+        }
+        // リンク切れの装飾を適用 (追加)
+        if (brokenRanges.length > 0) {
+            console.log(`Decorating ${brokenRanges.length} broken links in ${document.fileName}`);
+            editor.setDecorations(this.brokenLinkDecorationType, brokenRanges);
         }
     }
 
@@ -235,5 +349,6 @@ export class LinkDecorator {
      */
     public dispose(): void {
         this.linkDecorationType.dispose();
+        this.brokenLinkDecorationType.dispose(); // 追加
     }
 }

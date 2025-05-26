@@ -16,12 +16,8 @@
 - ラップトップ: `550e8400-e29b-41d4-a716-446655440001`
 - タブレット: `6ba7b810-9dad-11d1-80b4-00c04fd430c9`
 
-## アクセス権限
+## リンク切れ
 
-各ユーザーは以下の製品にアクセスできます：
+- 存在しないユーザー: `deadbeef-dead-beef-dead-beefdeadbeef`
+- 存在しない製品: `cafebabe-cafe-babe-cafe-babecafebabe`
 
-- Alice: スマートフォン、ラップトップ
-- Bob: タブレット
-- Carol: すべての製品
-
-詳細は各ユーザーと製品のYAMLファイルを参照してください。
