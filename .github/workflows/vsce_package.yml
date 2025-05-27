@@ -1,0 +1,97 @@
+name: make vsce package
+
+env:
+  name: regex-anchor
+  skip_ci: '[skip ci]' # https://docs.github.com/ja/actions/managing-workflow-runs/skipping-workflow-runs
+  increment: patch
+
+on:
+  push:
+    branches: "*"
+
+jobs:
+  package-feature:
+    if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_NAME: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Prepare
+        run: |
+          npm ci
+
+      - name: Build feature branch
+        run: |
+          VERSION=$(npm version prerelease --preid=${{ github.sha }} --no-git-tag-version)
+          PACKAGE_NAME="${{ env.name }}-${VERSION}"
+          npx vsce package --pre-release -o "${PACKAGE_NAME}.vsix"
+
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "${{ env.PACKAGE_NAME }}"
+          path: "${{ env.PACKAGE_NAME }}.vsix"
+
+
+  package-main-dev:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    environment: vsce_publish
+    env:
+      PACKAGE_NAME: ''
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    steps:
+      # https://github.com/orgs/community/discussions/25305#discussioncomment-5582031
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Prepare
+        run: |
+          npm ci
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      # - devブランチ場合は、versionはそのままでpre-releaseだけつける
+      #   https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions
+      # - mainブランチがリリースされる際に↓のようにバージョンを上げるコミットが積まれているので
+      #   それをdevにマージしてからバージョン操作を始める
+      - name: Build dev (pre-release)
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          git merge --no-ff origin/main -m "Merge branch 'main' into dev [skip ci]"
+
+          VERSION=$(npm version ${{ env.increment }} -m "%s ${{ env.skip_ci}}")
+          PACKAGE_NAME="${{ env.name }}-${VERSION}+pre-release"
+          npx vsce package --pre-release -o "${PACKAGE_NAME}.vsix"
+
+          git push origin HEAD
+          npx vsce publish --packagePath "${PACKAGE_NAME}.vsix"
+
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+
+      # mainブランチ場合は、pre-releaseを付けずにpackage
+      - name: Build main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          VERSION=$(npm version ${{ env.increment }} -m "%s ${{ env.skip_ci}}")
+          PACKAGE_NAME="${{ env.name }}-${VERSION}"
+          npx vsce package               -o "${PACKAGE_NAME}.vsix"
+
+          git push origin HEAD
+          npx vsce publish --packagePath "${PACKAGE_NAME}.vsix"
+
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "${{ env.PACKAGE_NAME }}"
+          path: "${{ env.PACKAGE_NAME }}.vsix"
+
