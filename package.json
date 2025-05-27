@@ -2,7 +2,7 @@
   "name": "regex-anchor",
   "displayName": "Regex Anchor",
   "description": "Create cross-file workspace anchor links from any regex pattern.",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "yasuraok",
   "engines": {
     "vscode": "^1.100.0"
@@ -124,9 +124,10 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run esbuild",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "esbuild": "node ./esbuild.js",
     "pretest": "npm run compile",
     "test": "mocha out/test/suite/**/*.js",
     "lint": "eslint src --ext ts",
@@ -138,6 +139,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.15.21",
     "@types/vscode": "^1.100.0",
+    "esbuild": "^0.25.4",
     "mocha": "^11.5.0",
     "typescript": "^5.8.3",
     "vsce": "^2.15.0"
