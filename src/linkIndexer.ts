@@ -50,7 +50,7 @@ export class LinkIndexer {
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             return;
         }
-        const config = vscode.workspace.getConfiguration('linkPatterns');
+        const config = vscode.workspace.getConfiguration('regexAnchor');
         const rules = config.get<any[]>('rules') || [];
 
 

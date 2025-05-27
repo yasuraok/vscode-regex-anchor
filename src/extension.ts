@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
     void rebuildIndex();
 
     // コマンドを登録
-    const refreshCommand = vscode.commands.registerCommand('link-patterns.refresh', async () => {
+    const refreshCommand = vscode.commands.registerCommand('regex-anchor.refresh', async () => {
         await rebuildIndex();
         void vscode.window.showInformationMessage('Link index has been refreshed');
     });
@@ -24,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
     // 設定変更を監視
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('linkPatterns')) {
+            if (e.affectsConfiguration('regexAnchor')) {
                 void rebuildIndex();
             }
         })
@@ -53,8 +53,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument(document => {
             // 保存されたファイルが宛先ファイルのいずれかと一致するか確認
-            const config = vscode.workspace.getConfiguration('linkPatterns');
-            const links = config.get<any[]>('links') || [];
+            const config = vscode.workspace.getConfiguration('regexAnchor');
+            const links = config.get<any[]>('rules') || [];
 
             const isDestinationFile = links.some(link =>
                 (link.destinations || []).some((dest: any) =>

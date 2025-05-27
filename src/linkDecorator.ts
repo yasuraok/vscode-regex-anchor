@@ -45,7 +45,7 @@ export class LinkDecorator {
 
             const document = editor.document;
             const position = selection.active;
-            const config = vscode.workspace.getConfiguration('linkPatterns');
+            const config = vscode.workspace.getConfiguration('regexAnchor');
             const rules = config.get<any[]>('rules') || [];
 
             for (const rule of rules) {
@@ -89,7 +89,7 @@ export class LinkDecorator {
     private registerHoverProvider(): void {
         vscode.languages.registerHoverProvider('*', {
             provideHover: async (document, position, token) => {
-                const config = vscode.workspace.getConfiguration('linkPatterns');
+                const config = vscode.workspace.getConfiguration('regexAnchor');
                 const rules = config.get<any[]>('rules') || [];
 
                 for (const rule of rules) {
@@ -209,14 +209,11 @@ export class LinkDecorator {
      * エディタの装飾を更新
      */
     public updateDecorations(editor: vscode.TextEditor): void {
-        if (!editor) return;
-
         const document = editor.document;
-        const config = vscode.workspace.getConfiguration('linkPatterns');
+        const decorations: vscode.DecorationOptions[] = [];
+        const brokenDecorations: vscode.DecorationOptions[] = [];
+        const config = vscode.workspace.getConfiguration('regexAnchor');
         const rules = config.get<any[]>('rules') || [];
-
-        const allValidRanges: vscode.Range[] = [];
-        const allBrokenRanges: vscode.Range[] = [];
 
         for (const rule of rules) {
             if (!rule.from || !Array.isArray(rule.from) || !rule.to || !Array.isArray(rule.to)) continue;
@@ -226,12 +223,13 @@ export class LinkDecorator {
                     continue;
                 }
                 const { validRanges, brokenRanges } = this.getLinkRangesInDocument(document, fromPattern.patterns);
-                allValidRanges.push(...validRanges);
-                allBrokenRanges.push(...brokenRanges);
+                // Convert ranges to decoration options
+                decorations.push(...validRanges.map(range => ({ range })));
+                brokenDecorations.push(...brokenRanges.map(range => ({ range })));
             }
         }
-        editor.setDecorations(this.linkDecorationType, allValidRanges);
-        editor.setDecorations(this.brokenLinkDecorationType, allBrokenRanges);
+        editor.setDecorations(this.linkDecorationType, decorations);
+        editor.setDecorations(this.brokenLinkDecorationType, brokenDecorations);
     }
 
     /**

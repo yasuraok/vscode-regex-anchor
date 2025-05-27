@@ -1,7 +1,7 @@
 {
-  "name": "link-patterns",
-  "displayName": "Link Patterns",
-  "description": "Create links in files based on patterns defined in settings",
+  "name": "regex-anchor",
+  "displayName": "Regex Anchor",
+  "description": "Create cross-file workspace anchor links from any regex pattern.",
   "version": "0.0.1",
   "publisher": "yasuraok",
   "engines": {
@@ -23,11 +23,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yasuraok/link-patterns"
+    "url": "https://github.com/yasuraok/vscode-regex-anchor"
   },
-  "homepage": "https://github.com/yasuraok/link-patterns/blob/main/README.md",
+  "homepage": "https://github.com/yasuraok/vscode-regex-anchor/blob/main/README.md",
   "bugs": {
-    "url": "https://github.com/yasuraok/link-patterns/issues"
+    "url": "https://github.com/yasuraok/vscode-regex-anchor/issues"
   },
   "license": "MIT",
   "activationEvents": [
@@ -37,14 +37,14 @@
   "contributes": {
     "commands": [
       {
-        "command": "link-patterns.refresh",
-        "title": "Link Patterns: Refresh Link Index"
+        "command": "regex-anchor.refresh",
+        "title": "Regex Anchor: Refresh Link Index"
       }
     ],
     "configuration": {
-      "title": "Link Patterns",
+      "title": "Regex Anchor",
       "properties": {
-        "linkPatterns.rules": {
+        "regexAnchor.rules": {
           "type": "array",
           "default": [],
           "description": "Configuration for link rules",

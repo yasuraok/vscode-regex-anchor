@@ -1,6 +1,8 @@
-# Link Patterns
+# Regex Anchor
 
-VSCode拡張機能: ファイル内の特定のパターンにマッチするテキストを、別のファイル内の対応する場所へのリンクとして機能させます。
+Create cross-file workspace anchor links from any regex pattern.
+
+VSCode拡張機能: 正規表現で指定したパターンを、ワークスペース内ファイルへのアンカーリンクに。
 
 ## 機能
 
@@ -13,15 +15,15 @@ VSCode拡張機能: ファイル内の特定のパターンにマッチするテ
 
 ```json
 {
-    "linkPatterns.links": [
+    "regexAnchor.rules": [
         {
-            "links": [
+            "from": [
                 {
                     "includes": "doc/*.md",
                     "patterns": "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
                 }
             ],
-            "destinations": [
+            "to": [
                 {
                     "includes": "src/*.yaml",
                     "patterns": "id: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
@@ -42,7 +44,7 @@ VSCode拡張機能: ファイル内の特定のパターンにマッチするテ
 
 ## コマンド
 
-* `Link Patterns: Refresh Link Index`: リンクインデックスを手動で更新します
+* `Regex Anchor: Refresh Link Index`: リンクインデックスを手動で更新します
 
 ## 開発者向け情報
 
