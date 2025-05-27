@@ -3,9 +3,9 @@
   "displayName": "Link Patterns",
   "description": "Create links in files based on patterns defined in settings",
   "version": "0.0.1",
-  "publisher": "sample",
+  "publisher": "yasuraok",
   "engines": {
-    "vscode": "^1.60.0"
+    "vscode": "^1.100.0"
   },
   "categories": [
     "Other"
@@ -17,18 +17,17 @@
     "reference",
     "uuid"
   ],
-  "icon": "images/icon.png",
   "galleryBanner": {
     "color": "#C80000",
     "theme": "dark"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/sample/link-patterns"
+    "url": "https://github.com/yasuraok/link-patterns"
   },
-  "homepage": "https://github.com/sample/link-patterns/blob/main/README.md",
+  "homepage": "https://github.com/yasuraok/link-patterns/blob/main/README.md",
   "bugs": {
-    "url": "https://github.com/sample/link-patterns/issues"
+    "url": "https://github.com/yasuraok/link-patterns/issues"
   },
   "license": "MIT",
   "activationEvents": [
@@ -141,10 +140,9 @@
     "@types/vscode": "^1.100.0",
     "mocha": "^11.5.0",
     "typescript": "^5.8.3",
-    "vscode": "^1.1.37"
+    "vsce": "^2.15.0"
   },
   "dependencies": {
-    "glob": "^7.2.3",
-    "minimatch": "^3.1.2"
+    "glob": "^11.0.2"
   }
 }

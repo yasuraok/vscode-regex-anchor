@@ -85,10 +85,7 @@ async function rebuildIndex(): Promise<void> {
         return;
     }
 
-    const config = vscode.workspace.getConfiguration('linkPatterns');
-    const links = config.get<any[]>('links') || [];
-
-    await linkIndexer.rebuildIndex(links);
+    await linkIndexer.rebuildIndex();
 
     // アクティブエディタを更新
     if (vscode.window.activeTextEditor) {

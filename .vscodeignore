@@ -1,4 +1,6 @@
-.vscode/**
-.vscode-test/**
-node_modules/**
-out/**
+**/*
+
+!out/
+!package.json
+!README.md
+!images/icon.png
