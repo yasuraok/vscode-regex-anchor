@@ -140,7 +140,6 @@
     "@types/node": "^22.15.21",
     "@types/vscode": "^1.100.0",
     "esbuild": "^0.25.4",
-    "esbuild-node-externals": "^1.18.0",
     "mocha": "^11.5.0",
     "typescript": "^5.8.3",
     "vsce": "^2.15.0"
