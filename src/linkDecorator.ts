@@ -50,8 +50,42 @@ export class LinkDecorator {
             }
         });
 
-        this.registerLinkClickHandler();
         this.registerHoverProvider();
+        this.registerDefinitionProvider();
+    }
+
+    /**
+     * Definition Providerを登録（Ctrl+クリック対応）
+     */
+    private registerDefinitionProvider(): void {
+        vscode.languages.registerDefinitionProvider('*', {
+            provideDefinition: async (document, position, token) => {
+                const config = vscode.workspace.getConfiguration('regexAnchor');
+                const rules = config.get<any[]>('rules') || [];
+
+                for (const rule of rules) {
+                    if (!rule.from || !Array.isArray(rule.from)) continue;
+
+                    for (const fromPattern of rule.from) {
+                        if (!fromPattern.includes || !fromPattern.patterns || !this.linkIndexer.isFileMatchGlob(document.fileName, fromPattern.includes)) {
+                            continue;
+                        }
+
+                        const matches = this.findLinkMatches(document, fromPattern.patterns, position.line);
+
+                        for (const match of matches) {
+                            if (match.range.contains(position)) {
+                                const destinations = this.linkIndexer.getDestinations(match.linkText);
+                                if (destinations.length > 0) {
+                                    return destinations;
+                                }
+                            }
+                        }
+                    }
+                }
+                return null;
+            }
+        });
     }
 
     /**
@@ -131,45 +165,6 @@ export class LinkDecorator {
 
         return content;
     }
-    /**
-     * リンクのクリックハンドラを登録
-     */
-    private registerLinkClickHandler(): void {
-        vscode.window.onDidChangeTextEditorSelection(async event => {
-            const editor = event.textEditor;
-            const selection = event.selections[0];
-
-            if (event.kind !== vscode.TextEditorSelectionChangeKind.Mouse || !selection || !selection.isEmpty) {
-                return;
-            }
-
-            const document = editor.document;
-            const position = selection.active;
-            const config = vscode.workspace.getConfiguration('regexAnchor');
-            const rules = config.get<any[]>('rules') || [];
-
-            for (const rule of rules) {
-                if (!rule.from || !Array.isArray(rule.from)) continue;
-
-                for (const fromPattern of rule.from) {
-                    if (!fromPattern.includes || !fromPattern.patterns || !this.linkIndexer.isFileMatchGlob(document.fileName, fromPattern.includes)) {
-                        continue;
-                    }
-
-                    const matches = this.findLinkMatches(document, fromPattern.patterns, position.line);
-
-                    for (const match of matches) {
-                        if (match.range.contains(position)) {
-                            if (this.linkIndexer.hasDestination(match.linkText)) {
-                                await this.navigateToDestination(match.linkText);
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
 
     /**
      * ホバープロバイダーを登録
@@ -235,38 +230,6 @@ export class LinkDecorator {
                 return null;
             }
         });
-    }
-
-    /**
-     * リンク先に移動
-     */
-    private async navigateToDestination(text: string): Promise<void> {
-        const destinations = this.linkIndexer.getDestinations(text);
-        if (destinations.length === 0) return;
-
-        if (destinations.length === 1) {
-            await this.openLocation(destinations[0]);
-        } else {
-            const items = destinations.map(location => ({
-                label: vscode.workspace.asRelativePath(location.uri),
-                description: `Line ${location.range.start.line + 1}`,
-                location
-            }));
-            const selected = await vscode.window.showQuickPick(items, { placeHolder: 'Select destination' });
-            if (selected) {
-                await this.openLocation(selected.location);
-            }
-        }
-    }
-
-    /**
-     * 場所を開く
-     */
-    private async openLocation(location: vscode.Location): Promise<void> {
-        const document = await vscode.workspace.openTextDocument(location.uri);
-        const editor = await vscode.window.showTextDocument(document);
-        editor.selection = new vscode.Selection(location.range.start, location.range.start);
-        editor.revealRange(location.range, vscode.TextEditorRevealType.InCenter);
     }
 
     /**

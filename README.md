@@ -43,7 +43,7 @@ Create cross-file workspace anchor links from any regex pattern.
    ```
 
 2. In the example above, UUID-formatted text in `doc/*.md` will become a link to the corresponding `id: <uuid>` line in `src/*.yaml` files.
-3. Clicking the link will navigate to the corresponding line in the destination file.
+3. Ctrl+click on the link to navigate to the corresponding line in the destination file.
 4. Hovering over the link will show a preview of the destination (when `hover` is `true`).
 5. If `editor` regex pattern is specified, matching content will be displayed inline next to the link.
 
