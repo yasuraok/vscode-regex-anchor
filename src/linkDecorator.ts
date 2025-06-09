@@ -298,7 +298,7 @@ export class LinkDecorator {
                                         range: match.range,
                                         renderOptions: {
                                             after: {
-                                                contentText: ` → ${extractedText.trim()}`,
+                                                contentText: ` (${extractedText.trim()})`,
                                                 color: '#999999',
                                                 fontStyle: 'italic'
                                             }
