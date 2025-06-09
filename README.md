@@ -2,6 +2,8 @@
 
 Create cross-file workspace anchor links from any regex pattern.
 
+> **⚠️ Warning: This extension is currently in experimental stage. The API and configuration format may change without notice in future versions.**
+
 ## Features
 
 * Allows text in files to function as links to corresponding locations in other files, based on patterns defined in `settings.json`.
