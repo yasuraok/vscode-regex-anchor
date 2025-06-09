@@ -11,9 +11,11 @@
                 {
                     "includes": "src/*.yaml",
                     "patterns": "id: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
-                    "hoverPreview": {
+                    "preview": {
                         "linesBefore": 0,
-                        "linesAfter": 3
+                        "linesAfter": 3,
+                        "hover": true,
+                        "editor": "name: (.*?)$"
                     }
                 }
             ]
