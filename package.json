@@ -2,7 +2,7 @@
   "name": "regex-anchor",
   "displayName": "Regex Anchor",
   "description": "Create cross-file workspace anchor links from any regex pattern with hover preview and inline display.",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "publisher": "yasuraok",
   "engines": {
     "vscode": "^1.100.0"
