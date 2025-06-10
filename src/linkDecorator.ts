@@ -1,26 +1,20 @@
 import * as vscode from 'vscode';
 import { LinkIndexer } from './linkIndexer';
 
-// 型定義を追加
-interface FromPattern {
+interface LinkRule {
+    from: SrcConf[];
+    to: DestConf[];
+}
+
+interface SrcConf {
     includes: string;
     patterns: string;
 }
 
-interface ToDefinition {
+interface DestConf {
     includes: string;
     patterns: string;
     preview?: PreviewConfig;
-}
-
-interface LinkRule {
-    from: FromPattern[];
-    to: ToDefinition[];
-}
-
-interface LinkMatch {
-    range: vscode.Range;
-    linkText: string;
 }
 
 interface PreviewConfig {
@@ -29,6 +23,12 @@ interface PreviewConfig {
     hover?: boolean;
     editor?: string;
 }
+
+interface LinkMatch {
+    range: vscode.Range;
+    linkText: string;
+}
+
 
 /**
  * エディタ内のリンクデコレーションを管理するクラス
@@ -60,7 +60,6 @@ export class LinkDecorator {
      */
     constructor(private readonly linkIndexer: LinkIndexer) {
         this.registerHoverProvider();
-        this.registerDefinitionProvider();
         this.registerDocumentLinkProvider();
     }
 
@@ -96,22 +95,6 @@ export class LinkDecorator {
             }
         }
         return null;
-    }
-
-    /**
-     * Definition Providerを登録（Ctrl+クリック対応）
-     */
-    private registerDefinitionProvider(): void {
-        vscode.languages.registerDefinitionProvider('*', {
-            provideDefinition: async (document, position, token) => {
-                const matchResult = this.findMatchingLinkAtPosition(document, position);
-                if (matchResult) {
-                    const destinations = this.linkIndexer.getDestinations(matchResult.match.linkText);
-                    return destinations.length > 0 ? destinations : null;
-                }
-                return null;
-            }
-        });
     }
 
     /**
@@ -161,15 +144,15 @@ export class LinkDecorator {
     /**
      * 宛先に対応するプレビュー設定を取得
      */
-    private getPreviewConfig(destination: vscode.Location, toDefinitions: ToDefinition[]): PreviewConfig {
+    private getPreviewConfig(destination: vscode.Location, destConfs: DestConf[]): PreviewConfig {
         const defaultConfig: PreviewConfig = { linesBefore: 2, linesAfter: 2, hover: true };
 
-        const matchedToDefinition = toDefinitions.find((toDef: ToDefinition) => {
-            return toDef.includes && this.linkIndexer.isFileMatchGlob(destination.uri.fsPath, toDef.includes);
+        const matched = destConfs.find((destConf: DestConf) => {
+            return destConf.includes && this.linkIndexer.isFileMatchGlob(destination.uri.fsPath, destConf.includes);
         });
 
-        if (matchedToDefinition?.preview) {
-            return { ...defaultConfig, ...matchedToDefinition.preview };
+        if (matched?.preview) {
+            return { ...defaultConfig, ...matched.preview };
         }
 
         return defaultConfig;
@@ -297,7 +280,7 @@ export class LinkDecorator {
     /**
      * ドキュメント内のリンクの範囲を取得
      */
-    private async getLinkRangesInDocument(document: vscode.TextDocument, patternStr: string, toDefinitions: ToDefinition[]): Promise<{ validRanges: vscode.Range[], brokenRanges: vscode.Range[], inlineData: vscode.DecorationOptions[] }> {
+    private async getLinkRangesInDocument(document: vscode.TextDocument, patternStr: string, destConfs: DestConf[]): Promise<{ validRanges: vscode.Range[], brokenRanges: vscode.Range[], inlineData: vscode.DecorationOptions[] }> {
         const validRanges: vscode.Range[] = [];
         const brokenRanges: vscode.Range[] = [];
         const inlineData: vscode.DecorationOptions[] = [];
@@ -312,7 +295,7 @@ export class LinkDecorator {
                 const destinations = this.linkIndexer.getDestinations(match.linkText);
                 if (destinations.length > 0) {
                     const destination = destinations[0];
-                    const previewConfig = this.getPreviewConfig(destination, toDefinitions);
+                    const previewConfig = this.getPreviewConfig(destination, destConfs);
 
                     // editor プロパティが設定されている場合、インライン表示を行う
                     if (previewConfig.editor) {
