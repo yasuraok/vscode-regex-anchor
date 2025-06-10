@@ -1,6 +1,23 @@
 import * as vscode from 'vscode';
 import { LinkIndexer } from './linkIndexer';
 
+// 型定義を追加
+interface FromPattern {
+    includes: string;
+    patterns: string;
+}
+
+interface ToDefinition {
+    includes: string;
+    patterns: string;
+    preview?: PreviewConfig;
+}
+
+interface LinkRule {
+    from: FromPattern[];
+    to: ToDefinition[];
+}
+
 interface LinkMatch {
     range: vscode.Range;
     linkText: string;
@@ -29,11 +46,9 @@ export class LinkDecorator {
      * @param linkIndexer リンクインデクサー
      */
     constructor(private readonly linkIndexer: LinkIndexer) {
-        // リンクのスタイルを定義
+        // リンクのスタイルを定義（DocumentLinkProviderが装飾を担当するため、有効なリンクは装飾しない）
         this.linkDecorationType = vscode.window.createTextEditorDecorationType({
-            color: '#3794ff',
-            textDecoration: 'underline',
-            cursor: 'pointer'
+            // 有効なリンクは装飾なし - DocumentLinkProviderが担当
         });
 
         this.brokenLinkDecorationType = vscode.window.createTextEditorDecorationType({
@@ -52,6 +67,41 @@ export class LinkDecorator {
 
         this.registerHoverProvider();
         this.registerDefinitionProvider();
+        this.registerDocumentLinkProvider();
+    }
+
+    /**
+     * 設定からルールを取得
+     */
+    private getRules(): LinkRule[] {
+        const config = vscode.workspace.getConfiguration('regexAnchor');
+        return config.get<LinkRule[]>('rules') || [];
+    }
+
+    /**
+     * ドキュメントとポジションから該当するリンクマッチを検索
+     */
+    private findMatchingLinkAtPosition(document: vscode.TextDocument, position: vscode.Position): { match: LinkMatch; rule: LinkRule } | null {
+        const rules = this.getRules();
+
+        for (const rule of rules) {
+            if (!rule.from || !Array.isArray(rule.from)) continue;
+
+            for (const fromPattern of rule.from) {
+                if (!fromPattern.includes || !fromPattern.patterns || !this.linkIndexer.isFileMatchGlob(document.fileName, fromPattern.includes)) {
+                    continue;
+                }
+
+                const matches = this.findLinkMatches(document, fromPattern.patterns, position.line);
+
+                for (const match of matches) {
+                    if (match.range.contains(position)) {
+                        return { match, rule };
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -60,28 +110,10 @@ export class LinkDecorator {
     private registerDefinitionProvider(): void {
         vscode.languages.registerDefinitionProvider('*', {
             provideDefinition: async (document, position, token) => {
-                const config = vscode.workspace.getConfiguration('regexAnchor');
-                const rules = config.get<any[]>('rules') || [];
-
-                for (const rule of rules) {
-                    if (!rule.from || !Array.isArray(rule.from)) continue;
-
-                    for (const fromPattern of rule.from) {
-                        if (!fromPattern.includes || !fromPattern.patterns || !this.linkIndexer.isFileMatchGlob(document.fileName, fromPattern.includes)) {
-                            continue;
-                        }
-
-                        const matches = this.findLinkMatches(document, fromPattern.patterns, position.line);
-
-                        for (const match of matches) {
-                            if (match.range.contains(position)) {
-                                const destinations = this.linkIndexer.getDestinations(match.linkText);
-                                if (destinations.length > 0) {
-                                    return destinations;
-                                }
-                            }
-                        }
-                    }
+                const matchResult = this.findMatchingLinkAtPosition(document, position);
+                if (matchResult) {
+                    const destinations = this.linkIndexer.getDestinations(matchResult.match.linkText);
+                    return destinations.length > 0 ? destinations : null;
                 }
                 return null;
             }
@@ -135,10 +167,10 @@ export class LinkDecorator {
     /**
      * 宛先に対応するプレビュー設定を取得
      */
-    private getPreviewConfig(destination: vscode.Location, toDefinitions: any[]): PreviewConfig {
+    private getPreviewConfig(destination: vscode.Location, toDefinitions: ToDefinition[]): PreviewConfig {
         const defaultConfig: PreviewConfig = { linesBefore: 2, linesAfter: 2, hover: true };
 
-        const matchedToDefinition = toDefinitions.find((toDef: any) => {
+        const matchedToDefinition = toDefinitions.find((toDef: ToDefinition) => {
             return toDef.includes && this.linkIndexer.isFileMatchGlob(destination.uri.fsPath, toDef.includes);
         });
 
@@ -172,62 +204,67 @@ export class LinkDecorator {
     private registerHoverProvider(): void {
         vscode.languages.registerHoverProvider('*', {
             provideHover: async (document, position, token) => {
-                const config = vscode.workspace.getConfiguration('regexAnchor');
-                const rules = config.get<any[]>('rules') || [];
+                const matchResult = this.findMatchingLinkAtPosition(document, position);
+                if (!matchResult) return null;
+
+                const destinations = this.linkIndexer.getDestinations(matchResult.match.linkText);
+
+                if (destinations.length > 0) {
+                    const destination = destinations[0];
+                    const previewConfig = this.getPreviewConfig(destination, matchResult.rule.to);
+
+                    // hover が false の場合はホバー表示しない
+                    if (previewConfig.hover === false) {
+                        return null;
+                    }
+
+                    const markdownString = await this.createHoverContent(matchResult.match, destination, matchResult.rule);
+                    return new vscode.Hover(markdownString, matchResult.match.range);
+                } else {
+                    const markdownString = this.createBrokenLinkContent(matchResult.match.linkText);
+                    return new vscode.Hover(markdownString, matchResult.match.range);
+                }
+            }
+        });
+    }
+
+    /**
+     * Document Link Providerを登録（Ctrl+クリック、ガイド文、アンダーライン対応）
+     */
+    private registerDocumentLinkProvider(): void {
+        vscode.languages.registerDocumentLinkProvider('*', {
+            provideDocumentLinks: async (document, token) => {
+                const rules = this.getRules();
+                const documentLinks: vscode.DocumentLink[] = [];
 
                 for (const rule of rules) {
-                    if (!rule.from || !Array.isArray(rule.from) || !rule.to || !Array.isArray(rule.to)) continue;
+                    if (!rule.from || !Array.isArray(rule.from)) continue;
 
                     for (const fromPattern of rule.from) {
                         if (!fromPattern.includes || !fromPattern.patterns || !this.linkIndexer.isFileMatchGlob(document.fileName, fromPattern.includes)) {
                             continue;
                         }
 
-                        const matches = this.findLinkMatches(document, fromPattern.patterns, position.line);
+                        const matches = this.findLinkMatches(document, fromPattern.patterns);
 
                         for (const match of matches) {
-                            if (match.range.contains(position)) {
-                                const destinations = this.linkIndexer.getDestinations(match.linkText);
+                            const destinations = this.linkIndexer.getDestinations(match.linkText);
+                            if (destinations.length > 0) {
+                                const destination = destinations[0];
+                                const relativePath = vscode.workspace.asRelativePath(destination.uri);
 
-                                if (destinations.length > 0) {
-                                    const destination = destinations[0];
-                                    const previewConfig = this.getPreviewConfig(destination, rule.to);
+                                // DocumentLinkを作成
+                                const documentLink = new vscode.DocumentLink(match.range, destination.uri);
+                                // ツールチップを設定（VSCodeが自動的に"(ctrl + click)"を追加する）
+                                documentLink.tooltip = `Follow link to ${relativePath}:${destination.range.start.line + 1}`;
 
-                                    // hover が false の場合はホバー表示しない
-                                    if (previewConfig.hover === false) {
-                                        return null;
-                                    }
-
-                                    const content = await this.getDestinationContent(destination, previewConfig);
-                                    const destDoc = await vscode.workspace.openTextDocument(destination.uri);
-                                    const relativePath = vscode.workspace.asRelativePath(destination.uri);
-
-                                    let previewContent = '';
-                                    const lines = content.split('\n');
-                                    const targetLineIndex = previewConfig.linesBefore;
-
-                                    lines.forEach((lineContent, index) => {
-                                        if (lineContent.trim() || index < lines.length - 1) { // 最後の空行以外は含める
-                                            const lineNumber = destination.range.start.line - previewConfig.linesBefore + index + 1;
-                                            const isTargetLine = index === targetLineIndex;
-                                            previewContent += `${isTargetLine ? '**' : ''}${lineNumber}: ${lineContent}${isTargetLine ? '**' : ''}\n`;
-                                        }
-                                    });
-
-                                    const markdownString = new vscode.MarkdownString();
-                                    markdownString.appendMarkdown(`**Link Target:**\n[${relativePath}:${destination.range.start.line + 1}](${destination.uri})\n`);
-                                    markdownString.appendCodeblock(previewContent, destDoc.languageId || 'plaintext');
-                                    return new vscode.Hover(markdownString, match.range);
-                                } else {
-                                    const markdownString = new vscode.MarkdownString();
-                                    markdownString.appendMarkdown(`**Broken Link:** \`${match.linkText}\` (Destination not found)`);
-                                    return new vscode.Hover(markdownString, match.range);
-                                }
+                                documentLinks.push(documentLink);
                             }
                         }
                     }
                 }
-                return null;
+
+                return documentLinks;
             }
         });
     }
@@ -240,8 +277,7 @@ export class LinkDecorator {
         const decorations: vscode.DecorationOptions[] = [];
         const brokenDecorations: vscode.DecorationOptions[] = [];
         const inlineDecorations: vscode.DecorationOptions[] = [];
-        const config = vscode.workspace.getConfiguration('regexAnchor');
-        const rules = config.get<any[]>('rules') || [];
+        const rules = this.getRules();
 
         for (const rule of rules) {
             if (!rule.from || !Array.isArray(rule.from) || !rule.to || !Array.isArray(rule.to)) continue;
@@ -257,7 +293,8 @@ export class LinkDecorator {
                 inlineDecorations.push(...inlineData);
             }
         }
-        editor.setDecorations(this.linkDecorationType, decorations);
+        // 有効なリンクはDocumentLinkProviderに任せ、破損したリンクとインライン装飾のみ適用
+        editor.setDecorations(this.linkDecorationType, []); // 有効なリンクは装飾しない
         editor.setDecorations(this.brokenLinkDecorationType, brokenDecorations);
         editor.setDecorations(this.inlineDecorationType, inlineDecorations);
     }
@@ -265,7 +302,7 @@ export class LinkDecorator {
     /**
      * ドキュメント内のリンクの範囲を取得
      */
-    private async getLinkRangesInDocument(document: vscode.TextDocument, patternStr: string, toDefinitions: any[]): Promise<{ validRanges: vscode.Range[], brokenRanges: vscode.Range[], inlineData: vscode.DecorationOptions[] }> {
+    private async getLinkRangesInDocument(document: vscode.TextDocument, patternStr: string, toDefinitions: ToDefinition[]): Promise<{ validRanges: vscode.Range[], brokenRanges: vscode.Range[], inlineData: vscode.DecorationOptions[] }> {
         const validRanges: vscode.Range[] = [];
         const brokenRanges: vscode.Range[] = [];
         const inlineData: vscode.DecorationOptions[] = [];
@@ -298,7 +335,7 @@ export class LinkDecorator {
                                         range: match.range,
                                         renderOptions: {
                                             after: {
-                                                contentText: ` (${extractedText.trim()})`,
+                                                contentText: `(${extractedText.trim()})`,
                                                 color: '#999999',
                                                 fontStyle: 'italic'
                                             }
@@ -327,5 +364,41 @@ export class LinkDecorator {
         this.linkDecorationType.dispose();
         this.brokenLinkDecorationType.dispose();
         this.inlineDecorationType.dispose();
+    }
+
+    /**
+     * ホバー用のMarkdownコンテンツを生成
+     */
+    private async createHoverContent(match: LinkMatch, destination: vscode.Location, rule: LinkRule): Promise<vscode.MarkdownString> {
+        const previewConfig = this.getPreviewConfig(destination, rule.to);
+        const content = await this.getDestinationContent(destination, previewConfig);
+        const destDoc = await vscode.workspace.openTextDocument(destination.uri);
+        const relativePath = vscode.workspace.asRelativePath(destination.uri);
+
+        let previewContent = '';
+        const lines = content.split('\n');
+        const targetLineIndex = previewConfig.linesBefore;
+
+        lines.forEach((lineContent, index) => {
+            if (lineContent.trim() || index < lines.length - 1) { // 最後の空行以外は含める
+                const lineNumber = destination.range.start.line - previewConfig.linesBefore + index + 1;
+                const isTargetLine = index === targetLineIndex;
+                previewContent += `${isTargetLine ? '**' : ''}${lineNumber}: ${lineContent}${isTargetLine ? '**' : ''}\n`;
+            }
+        });
+
+        const markdownString = new vscode.MarkdownString();
+        markdownString.appendMarkdown(`**Link Target:**\n[${relativePath}:${destination.range.start.line + 1}](${destination.uri})\n`);
+        markdownString.appendCodeblock(previewContent, destDoc.languageId || 'plaintext');
+        return markdownString;
+    }
+
+    /**
+     * 破損リンク用のMarkdownコンテンツを生成
+     */
+    private createBrokenLinkContent(linkText: string): vscode.MarkdownString {
+        const markdownString = new vscode.MarkdownString();
+        markdownString.appendMarkdown(`**Broken Link:** \`${linkText}\` (Destination not found)`);
+        return markdownString;
     }
 }
