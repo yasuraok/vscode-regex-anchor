@@ -308,13 +308,11 @@ export class LinkDecorator {
 
         let previewContent = '';
         const lines = content.split('\n');
-        const targetLineIndex = previewConfig.linesBefore;
 
         lines.forEach((lineContent, index) => {
             if (lineContent.trim() || index < lines.length - 1) { // 最後の空行以外は含める
                 const lineNumber = destination.range.start.line - previewConfig.linesBefore + index + 1;
-                const isTargetLine = index === targetLineIndex;
-                previewContent += `${isTargetLine ? '**' : ''}${lineNumber}: ${lineContent}${isTargetLine ? '**' : ''}\n`;
+                previewContent += `${lineNumber}: ${lineContent}\n`;
             }
         });
 
