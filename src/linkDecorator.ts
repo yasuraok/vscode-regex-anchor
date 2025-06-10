@@ -35,36 +35,30 @@ interface PreviewConfig {
  */
 export class LinkDecorator {
     // リンクの装飾タイプ
-    private linkDecorationType: vscode.TextEditorDecorationType;
+    private linkDecorationType = vscode.window.createTextEditorDecorationType({
+        // 有効なリンクは装飾なし - DocumentLinkProviderが担当
+    });
+
     // リンク切れの装飾タイプ
-    private brokenLinkDecorationType: vscode.TextEditorDecorationType;
+    private brokenLinkDecorationType = vscode.window.createTextEditorDecorationType({
+        color: '#ff3737',
+        textDecoration: 'underline dotted',
+    });
+
     // インライン表示の装飾タイプ
-    private inlineDecorationType: vscode.TextEditorDecorationType;
+    private inlineDecorationType = vscode.window.createTextEditorDecorationType({
+        after: {
+            color: '#999999',
+            fontStyle: 'italic',
+            margin: '0'
+        }
+    });
 
     /**
      * コンストラクタ
      * @param linkIndexer リンクインデクサー
      */
     constructor(private readonly linkIndexer: LinkIndexer) {
-        // リンクのスタイルを定義（DocumentLinkProviderが装飾を担当するため、有効なリンクは装飾しない）
-        this.linkDecorationType = vscode.window.createTextEditorDecorationType({
-            // 有効なリンクは装飾なし - DocumentLinkProviderが担当
-        });
-
-        this.brokenLinkDecorationType = vscode.window.createTextEditorDecorationType({
-            color: '#ff3737',
-            textDecoration: 'underline dotted',
-        });
-
-        // インライン表示のスタイルを定義
-        this.inlineDecorationType = vscode.window.createTextEditorDecorationType({
-            after: {
-                color: '#999999',
-                fontStyle: 'italic',
-                margin: '0 0 0 10px'
-            }
-        });
-
         this.registerHoverProvider();
         this.registerDefinitionProvider();
         this.registerDocumentLinkProvider();
@@ -256,6 +250,7 @@ export class LinkDecorator {
                                 // DocumentLinkを作成
                                 const documentLink = new vscode.DocumentLink(match.range, destination.uri);
                                 // ツールチップを設定（VSCodeが自動的に"(ctrl + click)"を追加する）
+                                // ツールチップ全体がリンク扱いとなるので、ここにリンク先プレビューを (markdown装飾で) 詰めることはできず、HoverProviderを援用する
                                 documentLink.tooltip = `Follow link to ${relativePath}:${destination.range.start.line + 1}`;
 
                                 documentLinks.push(documentLink);
@@ -335,9 +330,7 @@ export class LinkDecorator {
                                         range: match.range,
                                         renderOptions: {
                                             after: {
-                                                contentText: `(${extractedText.trim()})`,
-                                                color: '#999999',
-                                                fontStyle: 'italic'
+                                                contentText: ` (${extractedText.trim()})`,
                                             }
                                         }
                                     });
@@ -388,7 +381,8 @@ export class LinkDecorator {
         });
 
         const markdownString = new vscode.MarkdownString();
-        markdownString.appendMarkdown(`**Link Target:**\n[${relativePath}:${destination.range.start.line + 1}](${destination.uri})\n`);
+        // リンク先のファイルが何かについてはDocumentLinkProviderが提供するのでここでは不要
+        // markdownString.appendMarkdown(`**Link Target:**\n[${relativePath}:${destination.range.start.line + 1}](${destination.uri})\n`);
         markdownString.appendCodeblock(previewContent, destDoc.languageId || 'plaintext');
         return markdownString;
     }
