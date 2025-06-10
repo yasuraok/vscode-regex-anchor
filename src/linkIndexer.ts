@@ -8,7 +8,7 @@ import * as glob from 'glob';
  */
 export class LinkIndexer {
     // リンクのインデックス: テキスト -> 宛先のマップ
-    private linkIndex: Map<string, vscode.Location[]> = new Map();
+    private linkIndex: Map<string, Set<vscode.Location>> = new Map();
 
     /**
      * インデックスをクリア
@@ -21,22 +21,24 @@ export class LinkIndexer {
      * テキストをインデックスに追加
      */
     public addToIndex(text: string, location: vscode.Location): void {
-        const existingLocations = this.linkIndex.get(text) || [];
-        this.linkIndex.set(text, [...existingLocations, location]);
+        if (!this.linkIndex.has(text)) {
+            this.linkIndex.set(text, new Set<vscode.Location>());
+        }
+        this.linkIndex.get(text)!.add(location);
     }
 
     /**
      * テキストに対応する宛先があるかどうかを確認
      */
     public hasDestination(text: string): boolean {
-        return this.linkIndex.has(text) && this.linkIndex.get(text)!.length > 0;
+        return this.linkIndex.has(text) && this.linkIndex.get(text)!.size > 0;
     }
 
     /**
      * テキストに対応する宛先を取得
      */
     public getDestinations(text: string): vscode.Location[] {
-        return this.linkIndex.get(text) || [];
+        return this.linkIndex.has(text) ? Array.from(this.linkIndex.get(text)!) : [];
     }
 
     /**

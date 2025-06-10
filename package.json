@@ -1,7 +1,7 @@
 {
   "name": "regex-anchor",
   "displayName": "Regex Anchor",
-  "description": "Create cross-file workspace anchor links from any regex pattern.",
+  "description": "Create cross-file workspace anchor links from any regex pattern with hover preview and inline display.",
   "version": "0.0.7",
   "publisher": "yasuraok",
   "engines": {
@@ -17,10 +17,6 @@
     "reference",
     "uuid"
   ],
-  "galleryBanner": {
-    "color": "#C80000",
-    "theme": "dark"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/yasuraok/vscode-regex-anchor"
@@ -86,13 +82,14 @@
                       "type": "string",
                       "description": "Regex pattern to match link destinations"
                     },
-                    "hoverPreview": {
+                    "preview": {
                       "type": "object",
                       "default": {
                         "linesBefore": 2,
-                        "linesAfter": 2
+                        "linesAfter": 2,
+                        "hover": true
                       },
-                      "description": "Configuration for hover preview for this target",
+                      "description": "Configuration for preview for this target",
                       "properties": {
                         "linesBefore": {
                           "type": "integer",
@@ -103,6 +100,15 @@
                           "type": "integer",
                           "default": 2,
                           "description": "Number of lines to show after the target line"
+                        },
+                        "hover": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "Whether to enable hover preview"
+                        },
+                        "editor": {
+                          "type": "string",
+                          "description": "Regex pattern to extract specific content for inline display in editor"
                         }
                       }
                     }
