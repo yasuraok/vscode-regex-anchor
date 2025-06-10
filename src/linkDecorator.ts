@@ -1,28 +1,6 @@
 import * as vscode from 'vscode';
 import { LinkIndexer } from './linkIndexer';
-
-interface LinkRule {
-    from: SrcConf[];
-    to: DestConf[];
-}
-
-interface SrcConf {
-    includes: string;
-    patterns: string;
-}
-
-interface DestConf {
-    includes: string;
-    patterns: string;
-    preview?: PreviewConfig;
-}
-
-interface PreviewConfig {
-    linesBefore: number;
-    linesAfter: number;
-    hover?: boolean;
-    editor?: string;
-}
+import { LinkRule, SrcConf, DestConf, PreviewConfig } from './types';
 
 interface Result {
     src: {
@@ -243,11 +221,25 @@ export class LinkDecorator {
                     if (result.dest) {
                         const relativePath = vscode.workspace.asRelativePath(result.dest.location.uri);
 
+                        // previewConfigを使用して選択範囲を計算
+                        const targetLine = result.dest.location.range.start.line;
+                        const previewStartLine = Math.max(0, targetLine - result.dest.previewConfig.linesBefore);
+                        const previewEndLine = targetLine + result.dest.previewConfig.linesAfter + 1;
+
+                        // 1ベースの行番号に変換（VS Codeのフラグメントは1ベース）
+                        const startLineForUri = previewStartLine + 1;
+                        const endLineForUri = previewEndLine + 1;
+
+                        // フラグメント形式: L開始行-終了行（列は指定しない）
+                        const uriWithSelection = result.dest.location.uri.with({
+                            fragment: `L${startLineForUri}-${endLineForUri}`
+                        });
+
                         // DocumentLinkを作成
-                        const documentLink = new vscode.DocumentLink(result.src.range, result.dest.location.uri);
+                        const documentLink = new vscode.DocumentLink(result.src.range, uriWithSelection);
                         // ツールチップを設定（VSCodeが自動的に"(ctrl + click)"を追加する）
                         // ツールチップ全体がリンク扱いとなるので、ここにリンク先プレビューを (markdown装飾で) 詰めることはできず、HoverProviderを援用する
-                        documentLink.tooltip = `Follow link to ${relativePath}:${result.dest.location.range.start.line + 1}`;
+                        documentLink.tooltip = `Follow link to ${relativePath}:${targetLine + 1}`;
 
                         documentLinks.push(documentLink);
                     }
@@ -260,7 +252,8 @@ export class LinkDecorator {
 
     /**
      * エディタの装飾を更新
-     */    public async updateDecorations(editor: vscode.TextEditor): Promise<void> {
+     */
+    public async updateDecorations(editor: vscode.TextEditor): Promise<void> {
         const document = editor.document;
         const results = this.findAllLinkMatches(document);
 
