@@ -34,7 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(editor => {
             if (editor) {
-                linkDecorator.updateDecorations(editor);
+                void linkDecorator.updateDecorations(editor);
             }
         })
     );
@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.workspace.onDidChangeTextDocument(event => {
             const editor = vscode.window.activeTextEditor;
             if (editor && event.document === editor.document) {
-                linkDecorator.updateDecorations(editor);
+                void linkDecorator.updateDecorations(editor);
             }
         })
     );
@@ -70,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 初期エディタ更新
     if (vscode.window.activeTextEditor) {
-        linkDecorator.updateDecorations(vscode.window.activeTextEditor);
+        void linkDecorator.updateDecorations(vscode.window.activeTextEditor);
     }
 
     context.subscriptions.push(refreshCommand);
@@ -89,7 +89,7 @@ async function rebuildIndex(): Promise<void> {
 
     // アクティブエディタを更新
     if (vscode.window.activeTextEditor) {
-        linkDecorator.updateDecorations(vscode.window.activeTextEditor);
+        void linkDecorator.updateDecorations(vscode.window.activeTextEditor);
     }
 
     console.log('Link index rebuilt successfully');

@@ -2,13 +2,14 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as glob from 'glob';
+import { LinkRule, DestConf } from './types';
 
 /**
  * リンクのインデックスを管理するクラス
  */
 export class LinkIndexer {
     // リンクのインデックス: テキスト -> 宛先のマップ
-    private linkIndex: Map<string, vscode.Location[]> = new Map();
+    private linkIndex: Map<string, Set<vscode.Location>> = new Map();
 
     /**
      * インデックスをクリア
@@ -21,22 +22,24 @@ export class LinkIndexer {
      * テキストをインデックスに追加
      */
     public addToIndex(text: string, location: vscode.Location): void {
-        const existingLocations = this.linkIndex.get(text) || [];
-        this.linkIndex.set(text, [...existingLocations, location]);
+        if (!this.linkIndex.has(text)) {
+            this.linkIndex.set(text, new Set<vscode.Location>());
+        }
+        this.linkIndex.get(text)!.add(location);
     }
 
     /**
      * テキストに対応する宛先があるかどうかを確認
      */
     public hasDestination(text: string): boolean {
-        return this.linkIndex.has(text) && this.linkIndex.get(text)!.length > 0;
+        return this.linkIndex.has(text) && this.linkIndex.get(text)!.size > 0;
     }
 
     /**
      * テキストに対応する宛先を取得
      */
     public getDestinations(text: string): vscode.Location[] {
-        return this.linkIndex.get(text) || [];
+        return this.linkIndex.has(text) ? Array.from(this.linkIndex.get(text)!) : [];
     }
 
     /**
@@ -51,7 +54,7 @@ export class LinkIndexer {
             return;
         }
         const config = vscode.workspace.getConfiguration('regexAnchor');
-        const rules = config.get<any[]>('rules') || [];
+        const rules = config.get<LinkRule[]>('rules') || [];
 
 
         // 各リンク設定に対して処理
@@ -60,7 +63,7 @@ export class LinkIndexer {
                 continue;
             }
             await Promise.all(
-                rule.to.map(async (destination: any) => {
+                rule.to.map(async (destination: DestConf) => {
                     // 必須フィールドがない場合はスキップ
                     if (!destination.includes || !destination.patterns) {
                         return;
@@ -75,7 +78,7 @@ export class LinkIndexer {
     /**
      * 宛先設定を処理する
      */
-    private async processDestination(destination: any): Promise<void> {
+    private async processDestination(destination: DestConf): Promise<void> {
         // ワークスペースフォルダが存在しない場合は処理を中止
         if (!vscode.workspace.workspaceFolders) {
             return;
@@ -109,7 +112,7 @@ export class LinkIndexer {
     /**
      * ファイルを処理する
      */
-    private async processFile(file: string, destination: any): Promise<void> {
+    private async processFile(file: string, destination: DestConf): Promise<void> {
         try {
             const content = fs.readFileSync(file, 'utf8');
             const lines = content.split(/\r?\n/);
